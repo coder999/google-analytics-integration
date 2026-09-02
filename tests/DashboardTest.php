@@ -102,10 +102,23 @@ final class DashboardTest extends TestCase
         );
     }
 
+    /** A full, current-shape bundle -- as Dashboard itself would write. */
+    private function fullBundle(int $fetchedAt): array
+    {
+        return [
+            'daily'         => [],
+            'totals'        => [],
+            'prev'          => [],
+            'top_pages'     => [],
+            'top_locations' => [],
+            'fetched_at'    => $fetchedAt,
+        ];
+    }
+
     public function testServesAFreshCacheWithoutAnyHttpCalls(): void
     {
         $cache = new ArrayCache();
-        $cache->set('ga_report_cache', ['daily' => [], 'fetched_at' => 1_699_999_000]);
+        $cache->set('ga_report_cache', $this->fullBundle(1_699_999_000));
 
         $http = new FakeHttp(); // nothing queued: any request would throw
 
@@ -118,7 +131,7 @@ final class DashboardTest extends TestCase
     public function testRefetchesWhenTheCacheIsOlderThanTheTtl(): void
     {
         $cache = new ArrayCache();
-        $cache->set('ga_report_cache', ['daily' => [], 'fetched_at' => 1_699_990_000]);
+        $cache->set('ga_report_cache', $this->fullBundle(1_699_990_000));
 
         $http = new FakeHttp();
         $this->queueAllFourReports($http);
@@ -127,6 +140,33 @@ final class DashboardTest extends TestCase
 
         $this->assertSame(1_700_000_000, $data['fetched_at']);
         $this->assertCount(4, $http->requests());
+    }
+
+    public function testTreatsALegacyShapedCacheEntryAsAMiss(): void
+    {
+        // Byte-identical cache key to the four legacy ga.php clients this
+        // package replaces. Three of the four write this exact shape --
+        // no top_locations -- with a fresh fetched_at. It must be treated
+        // as a miss, not served, or the new admin page's iteration over
+        // top_locations hits undefined-key warnings for up to an hour on
+        // the very first retrofit of a site.
+        $cache = new ArrayCache();
+        $cache->set('ga_report_cache', [
+            'daily'      => [],
+            'totals'     => [],
+            'prev'       => [],
+            'top_pages'  => [],
+            'fetched_at' => 1_699_999_900, // 100s old, well inside the TTL
+        ]);
+
+        $http = new FakeHttp();
+        $this->queueAllFourReports($http);
+
+        $data = (new Dashboard($this->client($http), $cache, 3600, static fn (): int => 1_700_000_000))->data();
+
+        $this->assertSame(1_700_000_000, $data['fetched_at']);
+        $this->assertCount(4, $http->requests());
+        $this->assertArrayHasKey('top_locations', $data);
     }
 
     public function testForceBypassesAFreshCache(): void

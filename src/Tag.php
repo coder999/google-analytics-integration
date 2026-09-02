@@ -24,11 +24,18 @@ final class Tag
         }
 
         if (!preg_match('/^G-[A-Z0-9]{6,20}$/i', $id)) {
+            // $id failed validation, which means it is precisely the case
+            // where it is arbitrary attacker-shaped text -- never interpolate
+            // it raw into the message. A short sanitised excerpt keeps the
+            // message useful without reopening what validation just closed.
+            $safe = substr(preg_replace('/[^A-Za-z0-9_-]/', '', $id) ?? '', 0, 24);
             throw new InvalidArgumentException(
-                'Not a GA4 measurement ID: ' . $id . '. Expected the "G-XXXXXXXXXX" form '
+                'Not a GA4 measurement ID: ' . $safe . '. Expected the "G-XXXXXXXXXX" form '
                 . '(the numeric property ID belongs in GA4_PROPERTY_ID).'
             );
         }
+
+        $id = strtoupper($id);
 
         return <<<HTML
         <!-- Google tag (gtag.js) -->

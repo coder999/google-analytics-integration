@@ -31,7 +31,13 @@ final class Dashboard
 
         if (!$force) {
             $cached = $this->cache->get(self::CACHE_KEY);
-            if (is_array($cached) && (int) ($cached['fetched_at'] ?? 0) > $now - $this->ttlSeconds) {
+            // The cache key is byte-identical to the one the legacy ga.php
+            // clients this package replaces already write, and their
+            // bundles are missing top_locations. Treat that shape as a
+            // miss rather than serve it, the same discipline TokenSource
+            // applies to a mismatched scope.
+            if (isset($cached['top_locations'], $cached['daily'], $cached['totals'], $cached['prev'], $cached['top_pages'])
+                && (int) ($cached['fetched_at'] ?? 0) > $now - $this->ttlSeconds) {
                 return $cached;
             }
         }

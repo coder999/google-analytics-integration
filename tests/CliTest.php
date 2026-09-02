@@ -67,6 +67,28 @@ final class CliTest extends TestCase
         $this->assertStringContainsString('GA4_MEASUREMENT_ID=G-ABC1234567', $result['out']);
     }
 
+    public function testCreatePrintsTheTimezoneAndCurrencyInTheSuccessOutput(): void
+    {
+        $http = new FakeHttp();
+        $http->queue(201, json_encode(['name' => 'properties/456789'], JSON_THROW_ON_ERROR));
+        $http->queue(201, json_encode([
+            'name'          => 'properties/456789/dataStreams/999',
+            'webStreamData' => ['measurementId' => 'G-ABC1234567'],
+        ], JSON_THROW_ON_ERROR));
+
+        $result = (new Cli($http, $this->cache()))->run([
+            'create',
+            '--account', '100',
+            '--name', 'DiasLab',
+            '--domain', 'https://diaslab.org',
+            '--timezone', 'America/Denver',
+        ], $this->env());
+
+        $this->assertSame(0, $result['code']);
+        $this->assertStringContainsString('timezone America/Denver', $result['out']);
+        $this->assertStringContainsString('currency USD', $result['out']);
+    }
+
     public function testCreateFailsWhenARequiredOptionIsMissing(): void
     {
         $result = (new Cli(new FakeHttp(), $this->cache()))->run(
@@ -76,6 +98,17 @@ final class CliTest extends TestCase
 
         $this->assertSame(1, $result['code']);
         $this->assertStringContainsString('--domain', $result['out']);
+    }
+
+    public function testCreateFailsWhenTimezoneIsMissing(): void
+    {
+        $result = (new Cli(new FakeHttp(), $this->cache()))->run(
+            ['create', '--account', '100', '--name', 'DiasLab', '--domain', 'https://diaslab.org'],
+            $this->env()
+        );
+
+        $this->assertSame(1, $result['code']);
+        $this->assertStringContainsString('--timezone', $result['out']);
     }
 
     public function testFailsClearlyWithoutTheServiceAccountKey(): void
