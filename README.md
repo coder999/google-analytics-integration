@@ -15,9 +15,9 @@ Add to `composer.json`:
 
 ```json
 {
-    "require": { "coder999/ga4": "^0.1.0" },
+    "require": { "coder999/google-analytics-integration": "^0.1.0" },
     "repositories": [
-        { "type": "vcs", "url": "https://github.com/coder999/ga4" }
+        { "type": "vcs", "url": "https://github.com/coder999/google-analytics-integration" }
     ]
 }
 ```

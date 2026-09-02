@@ -1,5 +1,5 @@
 {
-    "name": "coder999/ga4",
+    "name": "coder999/google-analytics-integration",
     "description": "GA4 Data API reporting client, gtag renderer, and property provisioning CLI. No runtime dependencies, no database.",
     "type": "library",
     "license": "MIT",
