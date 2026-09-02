@@ -11,6 +11,14 @@ use RuntimeException;
 /**
  * JSON-file cache for sites with no database. Keep the directory OUTSIDE
  * the web root -- it holds an OAuth access token.
+ *
+ * The directory must also not be world-writable. If it is, another local
+ * user can pre-create the cache file (or a symlink in its place) before
+ * this class ever runs; `set()`'s write and permission tightening would
+ * then follow that symlink, and `ensureDirectory()` treats an
+ * already-existing directory as fine regardless of who created it. Either
+ * one hands another local user the cached token, or lets them redirect
+ * writes/chmods to a file of their choosing.
  */
 final class FileCache implements CacheInterface
 {
@@ -34,8 +42,22 @@ final class FileCache implements CacheInterface
     {
         $file = $this->path($key);
         $this->ensureDirectory();
-        file_put_contents($file, json_encode($value, JSON_THROW_ON_ERROR), LOCK_EX);
-        chmod($file, 0600);
+
+        // Create the file at 0600 from the moment it exists, rather than
+        // writing world-readable and tightening the mode afterwards --
+        // that window is real, and a chmod that silently fails leaves the
+        // file world-readable forever. umask affects file creation only,
+        // so this cannot widen an existing file's permissions.
+        $previousUmask = umask(0177);
+        try {
+            $written = file_put_contents($file, json_encode($value, JSON_THROW_ON_ERROR), LOCK_EX);
+        } finally {
+            umask($previousUmask);
+        }
+
+        if ($written === false) {
+            throw new RuntimeException('Could not write cache file: ' . $file);
+        }
     }
 
     private function path(string $key): string
