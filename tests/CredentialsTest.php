@@ -56,7 +56,7 @@ final class CredentialsTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('G-XXXX');
-        new Credentials(ServiceAccount::fromJson($this->validJson()), 'G-37XDTHZRHV');
+        new Credentials(ServiceAccount::fromJson($this->validJson()), 'G-ABC1234567');
     }
 
     public function testRejectsAnEmptyPropertyId(): void

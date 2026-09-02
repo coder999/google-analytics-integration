@@ -135,4 +135,36 @@ final class TokenSourceTest extends TestCase
         // Verify a request was made (readonly token was not reused)
         $this->assertNotEmpty($http->requests());
     }
+
+    public function testDoesNotHandAnEditScopedTokenToAReadonlyCaller(): void
+    {
+        // The direction the scope-in-cache fix actually exists to prevent:
+        // an analytics.edit bearer token (full write access to the GA
+        // property) being handed to a caller that only asked for
+        // analytics.readonly, because both callers share a cache key.
+        $cache = new ArrayCache();
+        $cache->set('ga_token_cache', ['token' => 'edit-tok', 'expires' => 1_700_001_000, 'scope' => TokenSource::SCOPE_EDIT]);
+
+        $http = new FakeHttp();
+        $http->queue(200, json_encode(['access_token' => 'readonly-tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR));
+
+        $this->assertSame('readonly-tok', $this->source($http, $cache, 1_700_000_000, TokenSource::SCOPE_READONLY)->accessToken());
+        $this->assertNotEmpty($http->requests());
+    }
+
+    public function testTreatsACacheEntryWithNoScopeAtAllAsAMiss(): void
+    {
+        // The half of the fix that actually fires at retrofit: the four
+        // production sites' existing token caches hold plain ['token',
+        // 'expires'] rows with no 'scope' key, written before this package
+        // existed. Those must refetch too, not just a mismatched scope.
+        $cache = new ArrayCache();
+        $cache->set('ga_token_cache', ['token' => 'legacy-tok', 'expires' => 1_700_001_000]);
+
+        $http = new FakeHttp();
+        $http->queue(200, json_encode(['access_token' => 'fresh-tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR));
+
+        $this->assertSame('fresh-tok', $this->source($http, $cache)->accessToken());
+        $this->assertNotEmpty($http->requests());
+    }
 }
