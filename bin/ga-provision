@@ -1,0 +1,26 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+// Works both inside this repo and when installed into a site's vendor/.
+foreach ([__DIR__ . '/../vendor/autoload.php', __DIR__ . '/../../../autoload.php'] as $autoload) {
+    if (is_file($autoload)) {
+        require $autoload;
+        break;
+    }
+}
+
+use Mtmd\Ga4\Cache\FileCache;
+use Mtmd\Ga4\Cli;
+use Mtmd\Ga4\Http\CurlHttp;
+
+$cacheDir = getenv('GA_CACHE_DIR') ?: sys_get_temp_dir() . '/ga4-provision-cache';
+
+$result = (new Cli(new CurlHttp(), new FileCache($cacheDir)))->run(
+    array_slice($argv, 1),
+    getenv() ?: []
+);
+
+fwrite($result['code'] === 0 ? STDOUT : STDERR, $result['out']);
+exit($result['code']);
