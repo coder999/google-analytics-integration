@@ -41,6 +41,7 @@ final class TokenSource
         if (is_array($cached)
             && !empty($cached['token'])
             && (int) ($cached['expires'] ?? 0) > $now + self::SKEW_SECONDS
+            && ($cached['scope'] ?? null) === $this->scope
         ) {
             return (string) $cached['token'];
         }
@@ -65,7 +66,7 @@ final class TokenSource
 
         $token   = (string) $decoded['access_token'];
         $expires = $now + (int) ($decoded['expires_in'] ?? 3600);
-        $this->cache->set($this->cacheKey, ['token' => $token, 'expires' => $expires]);
+        $this->cache->set($this->cacheKey, ['token' => $token, 'expires' => $expires, 'scope' => $this->scope]);
 
         return $token;
     }

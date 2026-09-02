@@ -76,7 +76,7 @@ final class TokenSourceTest extends TestCase
     public function testReusesACachedTokenWithoutAnotherHttpCall(): void
     {
         $cache = new ArrayCache();
-        $cache->set('ga_token_cache', ['token' => 'cached-tok', 'expires' => 1_700_000_500]);
+        $cache->set('ga_token_cache', ['token' => 'cached-tok', 'expires' => 1_700_000_500, 'scope' => TokenSource::SCOPE_READONLY]);
 
         $http = new FakeHttp(); // nothing queued: a second call would throw
 
@@ -87,7 +87,7 @@ final class TokenSourceTest extends TestCase
     public function testRefreshesATokenInsideTheSixtySecondSkew(): void
     {
         $cache = new ArrayCache();
-        $cache->set('ga_token_cache', ['token' => 'stale-tok', 'expires' => 1_700_000_030]);
+        $cache->set('ga_token_cache', ['token' => 'stale-tok', 'expires' => 1_700_000_030, 'scope' => TokenSource::SCOPE_READONLY]);
 
         $http = new FakeHttp();
         $http->queue(200, json_encode(['access_token' => 'fresh-tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR));
@@ -104,7 +104,7 @@ final class TokenSourceTest extends TestCase
         $this->source($http, $cache)->accessToken();
 
         $this->assertSame(
-            ['token' => 'tok-123', 'expires' => 1_700_003_600],
+            ['token' => 'tok-123', 'expires' => 1_700_003_600, 'scope' => TokenSource::SCOPE_READONLY],
             $cache->get('ga_token_cache')
         );
     }
@@ -118,5 +118,21 @@ final class TokenSourceTest extends TestCase
         $this->expectExceptionMessage('Invalid JWT Signature.');
 
         $this->source($http, new ArrayCache())->accessToken();
+    }
+
+    public function testDoesNotReuseCachedReadonlyTokenForEditScope(): void
+    {
+        $cache = new ArrayCache();
+        // Seed with a SCOPE_READONLY token
+        $cache->set('ga_token_cache', ['token' => 'readonly-tok', 'expires' => 1_700_001_000, 'scope' => TokenSource::SCOPE_READONLY]);
+
+        $http = new FakeHttp();
+        $http->queue(200, json_encode(['access_token' => 'edit-tok', 'expires_in' => 3600], JSON_THROW_ON_ERROR));
+
+        // Request with SCOPE_EDIT should not reuse the readonly token
+        $this->assertSame('edit-tok', $this->source($http, $cache, 1_700_000_000, TokenSource::SCOPE_EDIT)->accessToken());
+
+        // Verify a request was made (readonly token was not reused)
+        $this->assertNotEmpty($http->requests());
     }
 }
