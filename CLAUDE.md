@@ -5,10 +5,14 @@
 No PDO, no database connection, no settings table, no `$_SESSION`,
 no `$_GET`, no `getenv()`. Configuration arrives through constructor
 arguments; caching goes through `CacheInterface`; HTTP goes through
-`HttpInterface`. This is what lets one package serve a DB-backed site,
-a site with no database at all, and a CLI, instead of the four
-divergent copies of `ga.php` this package replaced. See
-`vps-infra/docs/superpowers/specs/2026-09-01-ga4-package-design.md`.
+`HttpInterface`. See README.md's "Design" section for why -- that
+explanation now lives there instead of here, since this file ships in
+the public repo and the design rationale should not be a dead end for
+readers who don't have it.
+
+Nexus-only: the original design conversation and rationale are recorded
+at `vps-infra/docs/superpowers/specs/2026-09-01-ga4-package-design.md`,
+which lives in a private repo and is not reachable from here.
 
 ## No runtime dependencies
 
