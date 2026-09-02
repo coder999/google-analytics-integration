@@ -87,3 +87,11 @@ without any of them forking the client to get there.
 ## Tests
 
 `bin/dev test` (Docker; the host has no PHP or Composer). Nothing in the suite touches the network — `Client`, `Dashboard`, and `Admin` are tested against a `FakeHttp` double.
+
+## Verified behaviour
+
+- `dataStreams.create` returns `webStreamData.measurementId` directly in
+  its create response; the read-back fallback in
+  `Admin::createWebDataStream` did not fire (verified 2026-09-02 against
+  the live GA4 Admin API). The fallback is kept because Google's
+  published reference does not promise the field either way.
