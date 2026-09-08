@@ -7,8 +7,9 @@ namespace Coder999\Ga4;
 use RuntimeException;
 
 /**
- * GA4 Admin API writes. Requires TokenSource::SCOPE_EDIT and a service
- * account holding Editor on the GA account.
+ * GA4 Admin API. The list* reads work with TokenSource::SCOPE_READONLY and
+ * a Viewer binding; createProperty/createWebDataStream need SCOPE_EDIT and
+ * Editor on the GA account.
  *
  * Accounts cannot be created through this API -- provisionAccountTicket is
  * a browser redirect flow (checked against Google's v1beta reference,
@@ -38,6 +39,39 @@ final class Admin
         }
 
         return $accounts;
+    }
+
+    /** @return list<array{propertyId:string, displayName:string}> */
+    public function listProperties(string $accountId): array
+    {
+        $parent = str_starts_with($accountId, 'accounts/') ? $accountId : 'accounts/' . $accountId;
+
+        $out = [];
+        foreach ($this->paged('/properties?filter=' . rawurlencode('parent:' . $parent), 'properties') as $property) {
+            $out[] = [
+                'propertyId'  => str_replace('properties/', '', (string) ($property['name'] ?? '')),
+                'displayName' => (string) ($property['displayName'] ?? ''),
+            ];
+        }
+
+        return $out;
+    }
+
+    /** @return list<array{type:string, defaultUri:string, measurementId:string}> */
+    public function listDataStreams(string $propertyId): array
+    {
+        $propertyId = str_replace('properties/', '', $propertyId);
+
+        $out = [];
+        foreach ($this->paged('/properties/' . rawurlencode($propertyId) . '/dataStreams', 'dataStreams') as $stream) {
+            $out[] = [
+                'type'          => (string) ($stream['type'] ?? ''),
+                'defaultUri'    => (string) ($stream['webStreamData']['defaultUri'] ?? ''),
+                'measurementId' => (string) ($stream['webStreamData']['measurementId'] ?? ''),
+            ];
+        }
+
+        return $out;
     }
 
     /** @return array{name:string, propertyId:string} */
@@ -95,6 +129,30 @@ final class Admin
     private function get(string $path): array
     {
         return $this->decode($this->http->get(self::BASE_URL . $path, $this->headers()));
+    }
+
+    /**
+     * Follows nextPageToken. A truncated list must not be able to
+     * masquerade as the whole account: a missing property reads on the
+     * dashboard as a site with no visitors.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function paged(string $path, string $key): array
+    {
+        $items = [];
+        $token = null;
+        do {
+            $url  = $path . (str_contains($path, '?') ? '&' : '?') . 'pageSize=200'
+                  . ($token !== null ? '&pageToken=' . rawurlencode($token) : '');
+            $page = $this->get($url);
+            foreach ($page[$key] ?? [] as $item) {
+                $items[] = $item;
+            }
+            $token = is_string($page['nextPageToken'] ?? null) ? $page['nextPageToken'] : null;
+        } while ($token !== null && $token !== '');
+
+        return $items;
     }
 
     /**
