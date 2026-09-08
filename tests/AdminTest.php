@@ -155,4 +155,78 @@ final class AdminTest extends TestCase
 
         $this->admin($http)->createProperty('100', 'DiasLab', 'America/Denver');
     }
+
+    public function testListsPropertiesForAnAccount(): void
+    {
+        $http = new FakeHttp();
+        $http->queue(200, json_encode(['properties' => [
+            ['name' => 'properties/520638109', 'displayName' => 'Dias Lab'],
+            ['name' => 'properties/538792114', 'displayName' => 'DASH'],
+        ]], JSON_THROW_ON_ERROR));
+
+        $properties = $this->admin($http)->listProperties('381219993');
+
+        $this->assertSame([
+            ['propertyId' => '520638109', 'displayName' => 'Dias Lab'],
+            ['propertyId' => '538792114', 'displayName' => 'DASH'],
+        ], $properties);
+        $this->assertStringContainsString(
+            'filter=parent%3Aaccounts%2F381219993',
+            $http->requests()[0]['url']
+        );
+    }
+
+    public function testListPropertiesFollowsPagination(): void
+    {
+        $http = new FakeHttp();
+        $http->queue(200, json_encode([
+            'properties'    => [['name' => 'properties/1', 'displayName' => 'One']],
+            'nextPageToken' => 'tok2',
+        ], JSON_THROW_ON_ERROR));
+        $http->queue(200, json_encode([
+            'properties' => [['name' => 'properties/2', 'displayName' => 'Two']],
+        ], JSON_THROW_ON_ERROR));
+
+        $properties = $this->admin($http)->listProperties('accounts/381219993');
+
+        $this->assertSame(['1', '2'], array_column($properties, 'propertyId'));
+        $this->assertStringContainsString('pageToken=tok2', $http->requests()[1]['url']);
+    }
+
+    public function testListsDataStreams(): void
+    {
+        $http = new FakeHttp();
+        $http->queue(200, json_encode(['dataStreams' => [
+            [
+                'name'          => 'properties/538792114/dataStreams/9',
+                'type'          => 'WEB_DATA_STREAM',
+                'webStreamData' => [
+                    'defaultUri'    => 'https://denverstructuralheart.org',
+                    'measurementId' => 'G-37XDTHZRHV',
+                ],
+            ],
+            ['name' => 'properties/538792114/dataStreams/10', 'type' => 'IOS_APP_DATA_STREAM'],
+        ]], JSON_THROW_ON_ERROR));
+
+        $streams = $this->admin($http)->listDataStreams('properties/538792114');
+
+        $this->assertSame([
+            ['type' => 'WEB_DATA_STREAM', 'defaultUri' => 'https://denverstructuralheart.org', 'measurementId' => 'G-37XDTHZRHV'],
+            ['type' => 'IOS_APP_DATA_STREAM', 'defaultUri' => '', 'measurementId' => ''],
+        ], $streams);
+        $this->assertSame(
+            'https://analyticsadmin.googleapis.com/v1beta/properties/538792114/dataStreams?pageSize=200',
+            $http->requests()[0]['url']
+        );
+    }
+
+    public function testListPropertiesSurfacesApiErrors(): void
+    {
+        $http = new FakeHttp();
+        $http->queue(403, json_encode(['error' => ['message' => 'caller lacks permission']], JSON_THROW_ON_ERROR));
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('caller lacks permission');
+        $this->admin($http)->listProperties('381219993');
+    }
 }
