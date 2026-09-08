@@ -11,18 +11,24 @@ GA4 Data API reporting client, gtag renderer, and property provisioning CLI. No 
 
 ## Installation
 
-Add to `composer.json`:
+Not on Packagist, so a consuming site needs the VCS repository entry as well as the requirement:
 
 ```json
 {
-    "require": { "coder999/google-analytics-integration": "^0.1.0" },
+    "require": { "coder999/google-analytics-integration": "^0.2.0" },
     "repositories": [
         { "type": "vcs", "url": "https://github.com/coder999/google-analytics-integration" }
-    ]
+    ],
+    "config": { "vendor-dir": "htdocs/vendor" }
 }
 ```
 
 Then run `composer install`.
+
+Two things that are easy to get wrong:
+
+- **Check the constraint against the tags before copying it.** On a `0.x` package Composer's caret pins the MINOR, so `^0.2.0` can never pick up `0.3.0` — a stale line here silently holds a new site back a version. `git ls-remote --tags https://github.com/coder999/google-analytics-integration` is the source of truth. The line above is what every fleet site pinned as of **2026-09-07**, which is deliberately not the same claim as "the newest tag": this file said `^0.1.0` until then, older than anything actually deployed.
+- **`vendor-dir` must be `htdocs/vendor`.** That is what the sites' nginx `location ^~ /vendor/ { deny all; }` covers; anywhere else and the dependency tree is publicly readable over HTTP. `vendor/` is committed, too — the VPS never runs `composer install`.
 
 ## Getting a Dashboard
 
